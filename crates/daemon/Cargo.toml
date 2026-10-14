@@ -9,5 +9,6 @@ authors.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+libc = "0.2.190"
 signal-hook = "0.4.5"
 whatdrains-core = { version = "0.1.0", path = "../core" }

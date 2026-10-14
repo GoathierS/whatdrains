@@ -53,6 +53,10 @@ fn main() {
     let result = match command.as_deref().unwrap_or("run") {
         "run" => run(&db),
         "report" => {
+            // Behave like other command line tools when piped into `head`: exit quietly
+            // instead of panicking on a closed stdout.
+            // SAFETY: called before any other thread exists.
+            unsafe { libc::signal(libc::SIGPIPE, libc::SIG_DFL) };
             let hours = positional.first().map(|h| h.parse::<f64>().unwrap_or_else(|_| fail("HOURS must be a number")));
             report(&db, hours.unwrap_or(24.0))
         }

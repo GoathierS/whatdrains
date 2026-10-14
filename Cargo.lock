@@ -932,6 +932,7 @@ dependencies = [
 name = "whatdrainsd"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "signal-hook",
  "whatdrains-core",
 ]
