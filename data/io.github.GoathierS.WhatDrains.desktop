@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=What Drains
+GenericName=Battery Usage
+Comment=See which apps drain your battery
+Exec=whatdrains
+Icon=io.github.GoathierS.WhatDrains
+Terminal=false
+Type=Application
+Categories=GTK;GNOME;System;Monitor;
+Keywords=battery;power;energy;usage;drain;consumption;
+StartupNotify=true

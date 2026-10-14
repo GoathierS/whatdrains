@@ -1,0 +1,13 @@
+[package]
+name = "whatdrainsd"
+description = "Background service recording which apps drain your battery"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+signal-hook = "0.4.5"
+whatdrains-core = { version = "0.1.0", path = "../core" }

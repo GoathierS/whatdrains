@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.GoathierS.WhatDrains</id>
+  <name>What Drains</name>
+  <summary>See which apps drain your battery</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <developer id="io.github.goathiers">
+    <name>Gauthier Souquet</name>
+  </developer>
+  <description>
+    <p>
+      What Drains shows the battery level over the last day or week and estimates how
+      much of the battery each app used, like the battery page of a phone.
+    </p>
+    <p>
+      A small background service records the battery draw and the CPU and GPU time of
+      every app once every ten seconds. Everything stays on your computer.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.GoathierS.WhatDrains.desktop</launchable>
+  <url type="homepage">https://github.com/GoathierS/whatdrains</url>
+  <url type="bugtracker">https://github.com/GoathierS/whatdrains/issues</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-14"/>
+  </releases>
+</component>

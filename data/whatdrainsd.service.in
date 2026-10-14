@@ -1,0 +1,14 @@
+[Unit]
+Description=What Drains: record which apps use the battery
+Documentation=https://github.com/GoathierS/whatdrains
+
+[Service]
+ExecStart=@BINDIR@/whatdrainsd run
+Restart=on-failure
+RestartSec=30
+Nice=10
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target
