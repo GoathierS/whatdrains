@@ -67,6 +67,20 @@ a small SQLite database in `~/.local/state/whatdrains/`. History is kept for 30 
 
 ## Install
 
+### Prebuilt (x86_64)
+
+Download the latest `whatdrains-*-x86_64-linux.tar.gz` from
+[Releases](https://github.com/GoathierS/whatdrains/releases), then:
+
+```sh
+tar xf whatdrains-*-x86_64-linux.tar.gz
+cd whatdrains-*-x86_64-linux
+./install.sh             # installs to ~/.local and starts recording
+```
+
+It needs GTK ≥ 4.14 and libadwaita ≥ 1.5 (Ubuntu 24.04+, Fedora 40+, Debian 13+,
+Arch...). `./install.sh --uninstall` removes it.
+
 ### From source
 
 You need Rust (1.85 or newer), GTK 4.14+ and libadwaita 1.5+.
@@ -136,8 +150,9 @@ PowerTOP remains the right tool for *tuning* power settings; What Drains is abou
 
 Issues and pull requests are very welcome, especially:
 
-- **reports from other hardware**: run `whatdrainsd report` and tell us if the
-  numbers look wrong on your laptop (AMD, ARM, NVIDIA, desktops without a battery);
+- **[hardware reports](https://github.com/GoathierS/whatdrains/issues/new?template=hardware-report.yml)**:
+  tell us whether the numbers look right on your laptop (AMD, ARM, NVIDIA, desktops
+  without a battery);
 - apps that show up with a wrong name or icon (please include `cat /proc/<pid>/cgroup`);
 - packaging for your distribution.
 

@@ -97,7 +97,7 @@ impl Store {
                  value REAL NOT NULL
              );",
         )?;
-        // Added in 0.2.
+        // Column added after the first development builds.
         let has_screen: bool =
             conn.query_row("SELECT COUNT(*) FROM pragma_table_info('battery') WHERE name = 'screen_on_s'", [], |r| {
                 r.get::<_, i64>(0).map(|n| n > 0)

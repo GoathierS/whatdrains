@@ -1,0 +1,57 @@
+name: Hardware report
+description: Tell us how What Drains behaves on your laptop (numbers that look right or wrong)
+labels: [hardware]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Reports from many different laptops are the best way to improve the energy model.
+        Please let What Drains record for at least an hour on battery first.
+  - type: input
+    id: laptop
+    attributes:
+      label: Laptop model
+      placeholder: Dell XPS 13 9315, Framework 13 AMD, ThinkPad T14 Gen 4...
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution and desktop
+      placeholder: Ubuntu 24.04, GNOME 46 (Wayland)
+    validations:
+      required: true
+  - type: input
+    id: cpu-gpu
+    attributes:
+      label: CPU and GPU
+      description: "`lscpu | grep 'Model name'` and `lspci | grep -i vga`"
+    validations:
+      required: true
+  - type: dropdown
+    id: verdict
+    attributes:
+      label: Do the numbers look plausible?
+      options:
+        - Yes, they match what I expected
+        - Partly, some apps look wrong
+        - No, something is clearly off
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Output of `whatdrainsd report 24`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: battery
+    attributes:
+      label: Battery and backlight
+      description: "Output of `cat /sys/class/power_supply/BAT*/uevent; ls /sys/class/backlight`"
+      render: text
+  - type: textarea
+    id: notes
+    attributes:
+      label: What looks wrong, or anything else

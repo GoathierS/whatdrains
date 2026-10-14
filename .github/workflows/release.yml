@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Binaries built here run on distributions with glibc >= 2.39,
+    # GTK >= 4.14 and libadwaita >= 1.5 (Ubuntu 24.04, Fedora 40, Debian 13...).
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install GTK 4 and libadwaita
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libadwaita-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --release
+      - run: cargo build --release
+      - name: Package
+        run: |
+          name="whatdrains-${GITHUB_REF_NAME#v}-x86_64-linux"
+          mkdir "$name"
+          cp target/release/whatdrains target/release/whatdrainsd \
+             data/io.github.GoathierS.WhatDrains.* data/whatdrainsd.service.in \
+             data/install.sh README.md LICENSE "$name/"
+          tar czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          echo "ASSET=$name" >> "$GITHUB_ENV"
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$ASSET.tar.gz" "$ASSET.tar.gz.sha256" \
+            --title "What Drains ${GITHUB_REF_NAME#v}" --notes-file .github/release-notes.md

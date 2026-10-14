@@ -1,0 +1,29 @@
+name: Bug report
+description: Something doesn't work, crashes, or an app has the wrong name or icon
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and distribution
+      description: "`whatdrainsd --version`, plus your distribution and desktop"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Service logs
+      description: "`journalctl --user -u whatdrainsd.service -n 50`"
+      render: text
+  - type: textarea
+    id: cgroup
+    attributes:
+      label: For a wrong app name or icon
+      description: "Find the process with `pgrep -a <name>`, then paste `cat /proc/<pid>/cgroup`"
+      render: text
