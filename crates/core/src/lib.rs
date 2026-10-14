@@ -5,6 +5,7 @@ pub mod apps;
 pub mod battery;
 pub mod model;
 pub mod procs;
+pub mod screen;
 pub mod store;
 
 /// Resolves an [`apps::AppId`] to the label and icon shown to users.

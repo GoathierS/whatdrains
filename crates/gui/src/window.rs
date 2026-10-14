@@ -26,6 +26,7 @@ struct Ui {
     details: gtk::Label,
     chart: gtk::DrawingArea,
     chart_data: Rc<RefCell<ChartData>>,
+    usage_time: gtk::Label,
     apps: adw::PreferencesGroup,
     rows: RefCell<Vec<adw::ActionRow>>,
 }
@@ -70,7 +71,11 @@ pub fn build(app: &adw::Application) {
     summary.append(&level);
     summary.append(&details);
     content.append(&summary);
-    content.append(&chart_card);
+    let usage_time = gtk::Label::builder().css_classes(["dim-label", "caption"]).xalign(0.0).build();
+    let chart_box = gtk::Box::builder().orientation(gtk::Orientation::Vertical).spacing(6).build();
+    chart_box.append(&chart_card);
+    chart_box.append(&usage_time);
+    content.append(&chart_box);
     content.append(&apps);
 
     let clamp = adw::Clamp::builder().maximum_size(640).child(&content).build();
@@ -111,6 +116,7 @@ pub fn build(app: &adw::Application) {
         details,
         chart,
         chart_data,
+        usage_time,
         apps,
         rows: RefCell::new(Vec::new()),
     });
@@ -194,6 +200,10 @@ fn refresh(ui: &Ui) {
 
     ui.stack.set_visible_child_name(if points.is_empty() && apps.is_empty() { "empty" } else { "content" });
 
+    let on_battery_s = 60.0 * points.iter().filter(|p| p.state == PowerState::Discharging).count() as f64;
+    let screen_on_s: f64 = points.iter().map(|p| p.screen_on_s).sum();
+    ui.usage_time.set_label(&format!("On battery {} · Screen on {}", duration(on_battery_s), duration(screen_on_s)));
+
     *ui.chart_data.borrow_mut() = ChartData { points, since, until: now };
     ui.chart.queue_draw();
 
@@ -237,6 +247,7 @@ fn fill_apps(ui: &Ui, apps: &[AppTotal]) {
         "No time on battery in this period, apps are ranked by CPU and GPU time".to_string()
     }));
 
+    let has_screen = apps.iter().any(|a| a.kind == AppKind::Screen);
     let theme = gtk::IconTheme::for_display(&ui.apps.display());
     let mut rows = ui.rows.borrow_mut();
     for a in apps {
@@ -249,7 +260,10 @@ fn fill_apps(ui: &Ui, apps: &[AppTotal]) {
             continue;
         }
 
-        let row = adw::ActionRow::builder().title(glib::markup_escape_text(&a.label)).subtitle(subtitle(a)).build();
+        let row = adw::ActionRow::builder()
+            .title(glib::markup_escape_text(&a.label))
+            .subtitle(subtitle(a, has_screen))
+            .build();
         row.add_prefix(&icon(a, &theme));
 
         let pct = gtk::Label::builder()
@@ -270,13 +284,17 @@ fn fill_apps(ui: &Ui, apps: &[AppTotal]) {
     }
 }
 
-fn subtitle(a: &AppTotal) -> String {
+fn subtitle(a: &AppTotal, has_screen: bool) -> String {
     let mut parts = Vec::new();
     if a.usage.energy_j > 0.0 {
         parts.push(format!("{:.2} Wh", a.usage.energy_j / 3600.0));
     }
     if a.kind == AppKind::Idle {
-        parts.push("screen, Wi-Fi and idle hardware".into());
+        parts.push(
+            if has_screen { "Wi-Fi, memory and idle hardware" } else { "screen, Wi-Fi and idle hardware" }.into(),
+        );
+    } else if a.kind == AppKind::Screen {
+        parts.push("backlight".into());
     } else {
         if a.usage.cpu_s >= 1.0 {
             parts.push(format!("CPU {}", duration(a.usage.cpu_s)));
@@ -304,7 +322,8 @@ fn icon(a: &AppTotal, theme: &gtk::IconTheme) -> gtk::Image {
         AppKind::Service | AppKind::System => "emblem-system-symbolic",
         AppKind::Desktop => "user-desktop-symbolic",
         AppKind::Kernel => "computer-symbolic",
-        AppKind::Idle => "video-display-symbolic",
+        AppKind::Idle => "power-profile-power-saver-symbolic",
+        AppKind::Screen => "display-brightness-symbolic",
     };
     let image = match a.icon.as_deref() {
         Some(path) if path.starts_with('/') => gtk::Image::from_file(path),

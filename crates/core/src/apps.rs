@@ -23,8 +23,11 @@ pub enum AppKind {
     System = 4,
     /// Kernel threads.
     Kernel = 5,
-    /// Baseline consumption that no process explains (screen, idle SoC, Wi-Fi...).
+    /// Baseline consumption that no process explains (idle SoC, memory, Wi-Fi...),
+    /// and the screen on machines where its backlight can't be read.
     Idle = 6,
+    /// The built-in screen's backlight.
+    Screen = 7,
 }
 
 impl AppKind {
@@ -36,6 +39,7 @@ impl AppKind {
             3 => Self::Desktop,
             4 => Self::System,
             5 => Self::Kernel,
+            7 => Self::Screen,
             _ => Self::Idle,
         }
     }
@@ -58,7 +62,11 @@ impl AppId {
     }
 
     pub fn idle() -> Self {
-        Self::new(AppKind::Idle, "idle".into(), "Display & idle system", None)
+        Self::new(AppKind::Idle, "idle".into(), "Idle system", None)
+    }
+
+    pub fn screen() -> Self {
+        Self::new(AppKind::Screen, "screen".into(), "Screen", None)
     }
 
     pub fn kernel() -> Self {

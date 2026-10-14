@@ -34,6 +34,8 @@ pub struct BatteryPoint {
     pub percent: f64,
     pub power_w: Option<f64>,
     pub state: PowerState,
+    /// Seconds the built-in screen was on during this minute.
+    pub screen_on_s: f64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,8 +91,20 @@ impl Store {
                  gpu_s    REAL NOT NULL,
                  energy_j REAL NOT NULL,
                  PRIMARY KEY (ts, app)
-             ) WITHOUT ROWID;",
+             ) WITHOUT ROWID;
+             CREATE TABLE IF NOT EXISTS settings (
+                 key   TEXT PRIMARY KEY,
+                 value REAL NOT NULL
+             );",
         )?;
+        // Added in 0.2.
+        let has_screen: bool =
+            conn.query_row("SELECT COUNT(*) FROM pragma_table_info('battery') WHERE name = 'screen_on_s'", [], |r| {
+                r.get::<_, i64>(0).map(|n| n > 0)
+            })?;
+        if !has_screen {
+            conn.execute("ALTER TABLE battery ADD COLUMN screen_on_s REAL NOT NULL DEFAULT 0", [])?;
+        }
         Ok(Self { conn, app_ids: HashMap::new() })
     }
 
@@ -104,8 +118,8 @@ impl Store {
         let tx = self.conn.transaction()?;
         if let Some(b) = battery {
             tx.execute(
-                "INSERT OR REPLACE INTO battery (ts, percent, power_w, state) VALUES (?1, ?2, ?3, ?4)",
-                params![ts, b.percent, b.power_w, b.state as i64],
+                "INSERT OR REPLACE INTO battery (ts, percent, power_w, state, screen_on_s) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![ts, b.percent, b.power_w, b.state as i64, b.screen_on_s],
             )?;
         }
         for (id, label, icon, u) in apps {
@@ -143,14 +157,16 @@ impl Store {
     }
 
     pub fn battery_since(&self, since: i64) -> Result<Vec<BatteryPoint>> {
-        let mut stmt =
-            self.conn.prepare("SELECT ts, percent, power_w, state FROM battery WHERE ts >= ?1 ORDER BY ts")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT ts, percent, power_w, state, screen_on_s FROM battery WHERE ts >= ?1 ORDER BY ts")?;
         let rows = stmt.query_map([since], |r| {
             Ok(BatteryPoint {
                 ts: r.get(0)?,
                 percent: r.get(1)?,
                 power_w: r.get(2)?,
                 state: PowerState::from_i64(r.get(3)?),
+                screen_on_s: r.get(4)?,
             })
         })?;
         rows.collect()
@@ -175,6 +191,15 @@ impl Store {
             })
         })?;
         rows.collect()
+    }
+
+    pub fn setting(&self, key: &str) -> Result<Option<f64>> {
+        self.conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| r.get(0)).optional()
+    }
+
+    pub fn set_setting(&self, key: &str, value: f64) -> Result<()> {
+        self.conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)", params![key, value])?;
+        Ok(())
     }
 
     /// Timestamp of the most recent record, to tell whether the daemon is running.
@@ -207,7 +232,13 @@ mod tests {
         let firefox = app("firefox");
         let files = app("org.gnome.Nautilus");
         let u = |e| Usage { cpu_s: 1.0, gpu_s: 0.5, energy_j: e };
-        let bp = BatteryPoint { ts: 0, percent: 80.0, power_w: Some(9.0), state: PowerState::Discharging };
+        let bp = BatteryPoint {
+            ts: 0,
+            percent: 80.0,
+            power_w: Some(9.0),
+            state: PowerState::Discharging,
+            screen_on_s: 60.0,
+        };
 
         s.record(
             60,
@@ -230,14 +261,29 @@ mod tests {
         assert_eq!(apps[1].label, "Files");
 
         assert_eq!(s.apps_since(100).unwrap().len(), 1);
-        assert_eq!(s.battery_since(0).unwrap().len(), 1);
+        assert_eq!(s.battery_since(0).unwrap()[0].screen_on_s, 60.0);
         assert_eq!(s.last_record().unwrap(), Some(120));
+    }
+
+    #[test]
+    fn settings_and_migration_from_0_1() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE battery (ts INTEGER PRIMARY KEY, percent REAL NOT NULL, power_w REAL, state INTEGER NOT NULL);
+             INSERT INTO battery VALUES (0, 50, NULL, 3);",
+        )
+        .unwrap();
+        let s = Store::init(conn).unwrap();
+        assert_eq!(s.battery_since(0).unwrap()[0].screen_on_s, 0.0);
+        assert_eq!(s.setting("screen_full_w").unwrap(), None);
+        s.set_setting("screen_full_w", 5.5).unwrap();
+        assert_eq!(s.setting("screen_full_w").unwrap(), Some(5.5));
     }
 
     #[test]
     fn prune_drops_old_rows() {
         let mut s = Store::open_in_memory().unwrap();
-        let bp = BatteryPoint { ts: 0, percent: 50.0, power_w: None, state: PowerState::OnAc };
+        let bp = BatteryPoint { ts: 0, percent: 50.0, power_w: None, state: PowerState::OnAc, screen_on_s: 0.0 };
         s.record(0, Some(&bp), &[(app("old"), "Old".into(), None, Usage::default())]).unwrap();
         s.prune(RETENTION_DAYS * 86_400 + 1).unwrap();
         assert!(s.apps_since(0).unwrap().is_empty());

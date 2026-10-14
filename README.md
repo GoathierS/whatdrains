@@ -25,7 +25,8 @@ seconds, and that's about it. GNOME Usage tried to add per-app power reporting i
 - your **battery level over the last 24 hours or 7 days**, with plugged-in periods;
 - the **share of the battery each app used** while unplugged, in Wh and %;
 - how much **CPU and GPU time** each app used;
-- what is just the **screen and idle hardware**, so you know what you can and cannot fix.
+- how much went to the **screen**, and your **screen-on time**;
+- what is just **idle hardware**, so you know what you can and cannot fix.
 
 It understands how modern desktops launch apps: Firefox and all its content
 processes count as *Firefox*, `cargo build` in a terminal counts as *cargo* rather
@@ -40,12 +41,16 @@ phones do:
 1. **Whole-machine draw.** While unplugged, the battery reports the system's power
    draw (`/sys/class/power_supply`).
 2. **Idle baseline.** A rolling low percentile of that draw over 30 minutes is what
-   the machine uses doing nothing: screen backlight, idle SoC, Wi-Fi... It is shown as
-   *Display & idle system*.
-3. **Per-app split.** The rest is split between apps in proportion to the CPU time
+   the machine uses doing nothing: screen backlight, idle SoC, Wi-Fi...
+3. **Screen.** Part of that baseline is the backlight: its level
+   (`/sys/class/backlight`) times the panel's power at full brightness. That power
+   starts from a typical laptop value (4 W) and **calibrates itself** on your
+   machine by comparing the idle draw with the screen on and with it blanked. The
+   rest of the baseline is shown as *Idle system*.
+4. **Per-app split.** The rest is split between apps in proportion to the CPU time
    (`/proc/<pid>/stat`) and GPU engine time (DRM `fdinfo`: i915, xe, amdgpu,
    nouveau, msm, panfrost...) they used.
-4. **Grouping.** Processes are grouped into apps using the systemd cgroup the desktop
+5. **Grouping.** Processes are grouped into apps using the systemd cgroup the desktop
    puts every app in (`app-gnome-org.gnome.Nautilus-1234.scope`,
    `snap.firefox.firefox-….scope`, `app-flatpak-….scope`, `vte-spawn-….scope`), and
    named using their `.desktop` file.
@@ -109,6 +114,7 @@ time.
 | History (days)               |      ✅      |    ❌     |      ❌      |     ❌     |
 | GPU time per app             |      ✅      |    ❌     |      ❌      |     ❌     |
 | Groups processes into apps   |      ✅      |    ❌     |   partly    |     ❌     |
+| Screen energy & screen-on time |    ✅      |    ❌     |      ❌      |     ❌     |
 | Graphical app                |      ✅      |    ❌     |      ✅      |     ❌     |
 | Needs root                   |      ❌      |    ✅     |      ❌      |  for RAPL  |
 

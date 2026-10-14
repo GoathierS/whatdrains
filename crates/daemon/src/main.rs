@@ -9,13 +9,15 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use whatdrains_core::apps::{AppId, DesktopDb};
 use whatdrains_core::battery::{self, PowerState};
-use whatdrains_core::model::{Attributor, Usage};
+use whatdrains_core::model::{Attributor, Usage, DEFAULT_SCREEN_FULL_W};
+use whatdrains_core::screen::ScreenSource;
 use whatdrains_core::store::{self, BatteryPoint, Store};
 use whatdrains_core::{display_info, procs};
 
 const SAMPLE_EVERY: Duration = Duration::from_secs(10);
 const BUCKET_S: i64 = 60;
 const DESKTOP_DB_REFRESH: Duration = Duration::from_secs(3600);
+const SCREEN_FULL_W_KEY: &str = "screen_full_w";
 
 const USAGE: &str = "\
 Usage: whatdrainsd [COMMAND] [OPTIONS]
@@ -78,6 +80,7 @@ struct Bucket {
     state: PowerState,
     power_sum_w: f64,
     power_n: u32,
+    screen_on_s: f64,
 }
 
 impl Bucket {
@@ -89,6 +92,7 @@ impl Bucket {
             state: PowerState::Unknown,
             power_sum_w: 0.0,
             power_n: 0,
+            screen_on_s: 0.0,
         }
     }
 }
@@ -108,13 +112,18 @@ fn run(db_path: &Path) -> store::Result<()> {
         eprintln!("whatdrainsd: no battery found, recording activity only");
     }
 
+    let screen_source = ScreenSource::find();
     let mut attributor = Attributor::new(procs::clock_ticks_per_second());
+    if let Some(w) = db.setting(SCREEN_FULL_W_KEY)? {
+        attributor.set_screen_full_w(w);
+    }
+    let mut saved_screen_full_w = attributor.screen_full_w();
     let mut desktop = DesktopDb::new();
     let mut desktop_loaded = Instant::now();
     let mut bucket = Bucket::new(now_unix());
     let mut last_prune = now_unix();
 
-    attributor.step(&procs::snapshot(), None);
+    attributor.step(&procs::snapshot(), None, None);
     let mut next = Instant::now() + SAMPLE_EVERY;
 
     while !stop.load(Ordering::Relaxed) {
@@ -131,7 +140,8 @@ fn run(db_path: &Path) -> store::Result<()> {
 
         let reading = battery_path.as_deref().and_then(battery::read_battery);
         let power = reading.filter(|r| r.state == PowerState::Discharging).and_then(|r| r.power_w);
-        let interval = attributor.step(&procs::snapshot(), power);
+        let screen = screen_source.as_ref().and_then(ScreenSource::read);
+        let interval = attributor.step(&procs::snapshot(), power, screen);
 
         let now = now_unix();
         if now - bucket.start >= BUCKET_S {
@@ -141,6 +151,11 @@ fn run(db_path: &Path) -> store::Result<()> {
             }
             flush(&mut db, &bucket, &mut desktop)?;
             bucket = Bucket::new(now);
+            let w = attributor.screen_full_w();
+            if (w - saved_screen_full_w).abs() > 0.01 * saved_screen_full_w {
+                db.set_setting(SCREEN_FULL_W_KEY, w)?;
+                saved_screen_full_w = w;
+            }
             if now - last_prune > 86_400 {
                 db.prune(now)?;
                 last_prune = now;
@@ -151,6 +166,7 @@ fn run(db_path: &Path) -> store::Result<()> {
         if interval.dt_s > SAMPLE_EVERY.as_secs_f64() * 3.0 {
             continue;
         }
+        bucket.screen_on_s += interval.screen_on_s;
         for (id, u) in interval.apps {
             bucket.apps.entry(id).or_default().add(&u);
         }
@@ -174,6 +190,7 @@ fn flush(db: &mut Store, bucket: &Bucket, desktop: &mut DesktopDb) -> store::Res
         ts: bucket.start,
         percent,
         power_w: (bucket.power_n > 0).then(|| bucket.power_sum_w / bucket.power_n as f64),
+        screen_on_s: bucket.screen_on_s,
         state: bucket.state,
     });
     let apps: Vec<_> = bucket
@@ -201,11 +218,18 @@ fn report(db_path: &Path, hours: f64) -> store::Result<()> {
 
     let total_j: f64 = apps.iter().map(|a| a.usage.energy_j).sum();
     let on_battery_min = battery.iter().filter(|b| b.state == PowerState::Discharging).count();
+    let screen_on_s: f64 = battery.iter().map(|b| b.screen_on_s).sum();
     println!(
-        "Last {hours} h: {on_battery_min} min on battery, {:.1} Wh used{}\n",
+        "Last {hours} h: {} on battery, screen on {}, {:.1} Wh used{}",
+        duration(on_battery_min as f64 * 60.0),
+        duration(screen_on_s),
         total_j / 3600.0,
         if total_j > 0.0 { "" } else { " (apps ranked by CPU/GPU activity)" }
     );
+    match db.setting(SCREEN_FULL_W_KEY)? {
+        Some(w) => println!("Screen: {w:.1} W at full brightness (calibrated on this machine)\n"),
+        None => println!("Screen: {DEFAULT_SCREEN_FULL_W:.1} W at full brightness (default, not calibrated yet)\n"),
+    }
     println!("{:>6}  {:>8}  {:>9}  {:>9}  APP", "SHARE", "ENERGY", "CPU", "GPU");
     // Hide the long tail of apps that barely did anything.
     let visible = apps.iter().filter(|a| {
