@@ -328,10 +328,54 @@ fn icon(a: &AppTotal, theme: &gtk::IconTheme) -> gtk::Image {
     let image = match a.icon.as_deref() {
         Some(path) if path.starts_with('/') => gtk::Image::from_file(path),
         Some(name) if theme.has_icon(name) => gtk::Image::from_icon_name(name),
-        _ => gtk::Image::from_icon_name(fallback),
+        _ => {
+            let known = known_icons(&a.key).iter().find(|n| theme.has_icon(n));
+            gtk::Image::from_icon_name(known.copied().unwrap_or(fallback))
+        }
     };
     image.set_pixel_size(32);
     image
+}
+
+/// Icons for well-known desktop components and system services, which have no
+/// `.desktop` file of their own. Candidates are tried in order.
+fn known_icons(key: &str) -> &'static [&'static str] {
+    let name = key.split_once(':').map_or(key, |(_, n)| n);
+    match name {
+        "gnome-shell" | "plasmashell" | "kwin" | "plasma" => &["view-app-grid-symbolic"],
+        "gnome-settings-daemon" => &["preferences-system-symbolic"],
+        "audio" | "pipewire" | "wireplumber" | "rtkit-daemon" => &["audio-speakers-symbolic"],
+        "ibus" => &["input-keyboard-symbolic"],
+        "search" | "tracker-miner-fs-3" | "localsearch" => &["system-search-symbolic"],
+        "gvfs" | "udisks2" => &["drive-harddisk-symbolic"],
+        "portals" | "xdg-desktop-portal-gnome" | "xdg-desktop-portal-gtk" => &["window-new-symbolic"],
+        "session" | "gdm" | "accounts-daemon" | "systemd-logind" => &["avatar-default-symbolic"],
+        "NetworkManager" | "NetworkManager-dispatcher" | "wpa_supplicant" | "ModemManager" => {
+            &["network-wireless-symbolic"]
+        }
+        "systemd-resolved" | "avahi-daemon" | "winbind" => &["network-workgroup-symbolic"],
+        "tailscaled" | "windscribe-helper" => &["network-vpn-symbolic"],
+        "bluetooth" => &["bluetooth-active-symbolic"],
+        "upower" | "power-profiles-daemon" | "thermald" => &["battery-symbolic"],
+        "fwupd" | "packagekit" | "snapd" | "apt-daily-upgrade" | "kerneloops" => {
+            &["software-update-available-symbolic", "package-x-generic-symbolic"]
+        }
+        "docker" | "containerd" => &["package-x-generic-symbolic"],
+        "polkit" | "gnome-keyring-daemon" | "gcr-ssh-agent" => &["dialog-password-symbolic"],
+        "fprintd" => &["auth-fingerprint-symbolic"],
+        "evolution-calendar-factory" | "evolution-source-registry" | "evolution-addressbook-factory" => {
+            &["x-office-calendar-symbolic"]
+        }
+        "cups-browsed" => &["printer-symbolic"],
+        "colord" => &["preferences-color-symbolic"],
+        "bolt" => &["thunderbolt-symbolic"],
+        "geoclue" => &["location-services-active-symbolic"],
+        "iio-sensor-proxy" => &["display-brightness-symbolic"],
+        "systemd-timesyncd" | "systemd-timedated" | "cron" => &["preferences-system-time-symbolic"],
+        "speech-dispatcher" | "at-spi-dbus-bus" => &["preferences-desktop-accessibility-symbolic"],
+        "gnome-remote-desktop" => &["video-display-symbolic"],
+        _ => &[],
+    }
 }
 
 fn duration(s: f64) -> String {
